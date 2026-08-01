@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出納帳 | 銀行口座 自動集計ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --paper:#F4F5F7;
+  --ink:#1E2A38;
+  --ink-soft:#4B5A6A;
+  --line:#D8DCE2;
+  --accent:#2F6F76;
+  --accent-deep:#1F4F55;
+  --in-green:#2E7D5B;
+  --in-green-bg:#E7F3ED;
+  --out-clay:#B5502E;
+  --out-clay-bg:#FBEEE8;
+  --card-gray:#8A8F98;
+  --card-gray-bg:#F1F1F3;
+  --surface:#FFFFFF;
+  --tab-paper:#EFE6D3;
+  --tab-paper-active:#FFFFFF;
+  --shadow:0 2px 10px rgba(30,42,56,0.06);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Noto Sans JP",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+.mono{font-family:"Roboto Mono","Noto Sans JP",monospace;font-variant-numeric:tabular-nums;}
+.display{font-family:"Shippori Mincho",serif;}
+
+/* ---------- Top header ---------- */
+.app-header{
+  padding:28px 32px 18px;
+  border-bottom:1px solid var(--line);
+  background:var(--surface);
+}
+.app-header h1{
+  margin:0 0 4px;
+  font-family:"Shippori Mincho",serif;
+  font-size:28px;
+  font-weight:700;
+  letter-spacing:.02em;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.app-header h1 .seal{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:34px;height:34px;
+  border:2px solid var(--out-clay);
+  color:var(--out-clay);
+  border-radius:4px;
+  font-size:15px;
+  font-weight:700;
+  transform:rotate(-4deg);
+  flex-shrink:0;
+}
+.app-header p{
+  margin:0;
+  color:var(--ink-soft);
+  font-size:13.5px;
+}
+
+/* ---------- Upload zone ---------- */
+.upload-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:16px;
+  padding:20px 32px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+}
+.dropzone{
+  position:relative;
+  border:1.5px dashed var(--line);
+  border-radius:10px;
+  padding:16px 18px;
+  background:var(--paper);
+  transition:border-color .15s ease, background .15s ease;
+  cursor:pointer;
+}
+.dropzone.drag-over{
+  border-color:var(--accent);
+  background:#EAF3F3;
+}
+.dropzone.filled{
+  border-style:solid;
+  border-color:var(--in-green);
+  background:var(--in-green-bg);
+}
+.dropzone .dz-label{
+  font-size:11px;
+  letter-spacing:.06em;
+  color:var(--ink-soft);
+  text-transform:uppercase;
+  margin-bottom:6px;
+  font-weight:700;
+}
+.dropzone .dz-title{
+  font-size:15px;
+  font-weight:700;
+  margin-bottom:2px;
+}
+.dropzone .dz-sub{
+  font-size:12.5px;
+  color:var(--ink-soft);
+}
+.dropzone .dz-status{
+  margin-top:8px;
+  font-size:12.5px;
+  color:var(--accent-deep);
+  font-weight:500;
+  word-break:break-all;
+}
+.dropzone .dz-clear{
+  position:absolute;
+  top:10px;right:10px;
+  border:none;
+  background:transparent;
+  color:var(--ink-soft);
+  font-size:12px;
+  cursor:pointer;
+  padding:4px 8px;
+  border-radius:6px;
+}
+.dropzone .dz-clear:hover{background:rgba(0,0,0,.06);}
+.dropzone.bank{border-top:3px solid var(--accent);}
+.dropzone.company{border-top:3px solid var(--card-gray);}
+.dropzone.president{border-top:3px solid var(--card-gray);}
+.dz-icon{font-size:20px;margin-bottom:6px;}
+.opening-balance{
+  padding:14px 32px;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-size:13px;
+  color:var(--ink-soft);
+}
+.opening-balance input{
+  width:150px;
+  padding:6px 10px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  font-family:"Roboto Mono",monospace;
+  font-size:13px;
+  text-align:right;
+}
+.opening-balance .hint{font-size:11.5px;color:#9aa3ad;}
+.save-status{font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+.save-status.ok{color:var(--in-green);}
+
+/* ---------- Layout ---------- */
+.layout{
+  display:flex;
+  align-items:flex-start;
+  min-height:calc(100vh - 240px);
+}
+
+/* ledger tab index - signature element */
+.tab-index{
+  width:150px;
+  flex-shrink:0;
+  padding:26px 0 40px 18px;
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+.ledger-tab{
+  position:relative;
+  background:var(--tab-paper);
+  color:var(--ink);
+  border:1px solid #DED0AF;
+  border-right:none;
+  border-radius:8px 0 0 8px;
+  padding:10px 14px 10px 16px;
+  margin-bottom:-1px;
+  margin-right:0;
+  cursor:pointer;
+  font-size:12.5px;
+  font-weight:500;
+  text-align:left;
+  transform:translateX(10px);
+  transition:transform .12s ease, background .12s ease;
+}
+.ledger-tab:nth-child(odd){transform:translateX(14px);}
+.ledger-tab .yr{font-size:10px;color:var(--ink-soft);display:block;}
+.ledger-tab .mo{font-family:"Shippori Mincho",serif;font-size:16px;font-weight:700;}
+.ledger-tab:hover{transform:translateX(2px);}
+.ledger-tab.active{
+  background:var(--tab-paper-active);
+  border-color:var(--line);
+  transform:translateX(0);
+  box-shadow:-2px 2px 8px rgba(30,42,56,0.08);
+  z-index:2;
+}
+.ledger-tab.overview{
+  border-radius:8px 0 0 8px;
+  background:var(--accent);
+  color:#fff;
+  margin-bottom:14px;
+  transform:translateX(10px);
+}
+.ledger-tab.overview .mo{color:#fff;}
+.ledger-tab.overview.active{
+  background:var(--accent-deep);
+  transform:translateX(0);
+}
+.tab-empty{
+  padding:16px;
+  font-size:12px;
+  color:#a9927a;
+  transform:translateX(14px);
+}
+
+/* main content */
+.content{
+  flex:1;
+  min-width:0;
+  padding:26px 32px 60px;
+}
+.month-head{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom:18px;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.month-head h2{
+  margin:0;
+  font-family:"Shippori Mincho",serif;
+  font-size:26px;
+}
+.month-head .sub{
+  color:var(--ink-soft);
+  font-size:13px;
+  margin-left:10px;
+}
+.btn{
+  border:none;
+  border-radius:8px;
+  padding:9px 16px;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:"Noto Sans JP",sans-serif;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent-deep);}
+.btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+.btn-ghost:hover{background:#EEF1F3;}
+.btn-danger{background:#fff;color:var(--out-clay);border:1px solid var(--out-clay);}
+.btn-danger:hover{background:var(--out-clay-bg);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+.stat-row{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:12px;
+  margin-bottom:22px;
+}
+.stat-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:14px 16px;
+  box-shadow:var(--shadow);
+}
+.stat-card .label{font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;white-space:nowrap;}
+.stat-card .value{font-family:"Roboto Mono",monospace;font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.stat-card.in .value{color:var(--in-green);}
+.stat-card.out .value{color:var(--out-clay);}
+.stat-card.net .value.pos{color:var(--in-green);}
+.stat-card.net .value.neg{color:var(--out-clay);}
+
+table.ledger-table{
+  width:100%;
+  border-collapse:collapse;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  font-size:13px;
+  margin-bottom:26px;
+}
+table.ledger-table thead th{
+  background:#F0F2F4;
+  color:var(--ink-soft);
+  font-size:11.5px;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+  text-align:left;
+  padding:9px 12px;
+  border-bottom:1px solid var(--line);
+}
+table.ledger-table thead th.sortable{cursor:pointer;user-select:none;white-space:nowrap;}
+table.ledger-table thead th.sortable:hover{background:#E6E9EC;color:var(--ink);}
+.sort-ind{font-size:9px;margin-left:4px;color:#b7bec6;display:inline-block;}
+.sort-ind.active{color:var(--accent-deep);}
+
+.detail-tabs{
+  display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line);
+}
+.detail-tab-btn{
+  background:transparent;border:none;padding:10px 18px;font-size:13.5px;font-weight:700;
+  color:var(--ink-soft);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px;
+  font-family:"Noto Sans JP",sans-serif;
+}
+.detail-tab-btn:hover{color:var(--ink);}
+.detail-tab-btn.active{color:var(--accent-deep);border-bottom-color:var(--accent);}
+.detail-tab-btn .cnt{font-family:"Roboto Mono",monospace;font-weight:400;font-size:11px;color:var(--ink-soft);margin-left:5px;}
+table.ledger-table td{
+  padding:8px 12px;
+  border-bottom:1px solid #EEF0F2;
+  vertical-align:top;
+}
+table.ledger-table tbody tr:hover{background:#FAFBFC;}
+td.num{font-family:"Roboto Mono",monospace;text-align:right;white-space:nowrap;}
+td.in-amt{color:var(--in-green);}
+td.out-amt{color:var(--out-clay);}
+td.date-cell{white-space:nowrap;color:var(--ink-soft);font-family:"Roboto Mono",monospace;font-size:12.5px;}
+
+.section-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:0 0 10px;
+  font-size:14px;
+  font-weight:700;
+  color:var(--ink-soft);
+}
+.section-title .badge{
+  font-size:10.5px;
+  font-weight:700;
+  padding:2px 8px;
+  border-radius:20px;
+  background:var(--card-gray-bg);
+  color:var(--card-gray);
+  letter-spacing:.02em;
+}
+.card-section{
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#FBFBFC;
+  padding:14px 16px 6px;
+  margin-bottom:18px;
+}
+.card-section .total-line{
+  font-size:12.5px;
+  color:var(--ink-soft);
+  margin-bottom:10px;
+}
+.card-section .total-line b{color:var(--card-gray);font-family:"Roboto Mono",monospace;}
+
+.empty-state{
+  text-align:center;
+  padding:70px 20px;
+  color:var(--ink-soft);
+}
+.empty-state .big{font-family:"Shippori Mincho",serif;font-size:20px;color:var(--ink);margin-bottom:8px;}
+
+/* overview */
+.overview-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:24px;}
+.overview-table th{background:#F0F2F4;color:var(--ink-soft);font-size:11.5px;text-transform:uppercase;padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);}
+.overview-table th:first-child,.overview-table td:first-child{text-align:left;}
+.overview-table td{padding:8px 12px;text-align:right;font-family:"Roboto Mono",monospace;border-bottom:1px solid #EEF0F2;}
+.overview-table tr:hover{background:#FAFBFC;}
+.overview-table td:first-child{font-family:"Noto Sans JP",sans-serif;color:var(--ink);font-weight:500;}
+.row-delete-btn{
+  border:1px solid var(--line);background:#fff;color:var(--out-clay);
+  border-radius:6px;padding:4px 9px;cursor:pointer;font-size:13px;
+}
+.row-delete-btn:hover{background:var(--out-clay-bg);border-color:var(--out-clay);}
+.chart-wrap{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:26px;}
+.chart-wrap canvas{max-height:260px;}
+
+/* modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(20,26,32,.45);
+  display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;
+}
+.modal{
+  background:#fff;border-radius:14px;padding:26px 28px;max-width:560px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:86vh;overflow-y:auto;
+}
+.modal h3{margin:0 0 6px;font-family:"Shippori Mincho",serif;font-size:19px;}
+.modal p.desc{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;}
+.map-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.map-row label{width:130px;font-size:13px;font-weight:600;flex-shrink:0;}
+.map-row select{flex:1;padding:7px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+
+.toast-wrap{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);max-width:340px;}
+.toast.err{background:var(--out-clay);}
+.toast.ok{background:var(--accent-deep);}
+
+/* printable pdf render area (offscreen) */
+#pdf-render-area{
+  position:fixed;top:0;left:-99999px;
+  width:940px;
+  background:#fff;
+  padding:34px;
+  font-family:"Noto Sans JP",sans-serif;
+  color:#1E2A38;
+}
+#pdf-render-area .letterhead{
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:2px solid #1E2A38;padding-bottom:10px;margin-bottom:14px;
+}
+#pdf-render-area .letterhead .company{font-size:14px;font-weight:700;letter-spacing:.03em;}
+#pdf-render-area .letterhead .doc-date{font-size:11px;color:#5a6b7a;}
+#pdf-render-area h2{font-family:"Shippori Mincho",serif;margin:0 0 4px;font-size:22px;}
+#pdf-render-area .pdf-sub{font-size:12px;color:#5a6b7a;margin-bottom:16px;}
+#pdf-render-area table{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:18px;}
+#pdf-render-area th{background:#F0F2F4;padding:6px 8px;text-align:left;border:1px solid #D8DCE2;}
+#pdf-render-area td{padding:5px 8px;border:1px solid #E4E7EA;}
+#pdf-render-area td.num{text-align:right;font-family:"Roboto Mono",monospace;white-space:nowrap;}
+#pdf-render-area .stat-grid{display:flex;gap:8px;margin-bottom:18px;flex-wrap:nowrap;}
+#pdf-render-area .stat-grid div{
+  flex:1;border:1px solid #D8DCE2;border-radius:6px;padding:9px 10px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  white-space:nowrap;overflow:hidden;
+}
+#pdf-render-area .stat-grid .lab{font-size:10.5px;color:#5a6b7a;flex-shrink:0;}
+#pdf-render-area .stat-grid .val{font-family:"Roboto Mono",monospace;font-weight:700;font-size:14px;white-space:nowrap;}
+#pdf-render-area .rule{border:none;border-top:1px solid #D8DCE2;margin:18px 0;}
+#pdf-render-area .pdf-footer{font-size:9.5px;color:#8a94a0;text-align:right;margin-top:6px;}
+
+@media (max-width:900px){
+  .upload-row{grid-template-columns:1fr;}
+  .stat-row{grid-template-columns:repeat(2,1fr);}
+  .layout{flex-direction:column;}
+  .tab-index{flex-direction:row;flex-wrap:wrap;width:100%;padding:16px 20px;gap:8px;}
+  .ledger-tab{transform:none !important;border-radius:8px;border-right:1px solid #DED0AF;}
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1><span class="seal">帳</span>出納帳 <span style="font-size:15px;color:var(--ink-soft);font-weight:400;">— 銀行口座 自動集計ツール</span></h1>
+  <p>銀行口座のCSV／Excelをドロップすると、月ごとの入金・出金・収支を自動集計します。会社カード・社長カードは記録のみで集計には含まれません。</p>
+</div>
+
+<div class="upload-row" id="uploadRow"></div>
+
+<div class="opening-balance">
+  <label for="openingBalance">期首残高（任意・残高列が無いデータの初回計算に使用）</label>
+  <input type="text" id="openingBalance" class="mono" value="0">
+  <span class="hint">円　※明細に「残高」列がある場合はそちらを優先します</span>
+  <span style="flex:1"></span>
+  <span class="save-status" id="saveStatus"></span>
+  <button class="btn btn-primary" id="saveDataBtn">💾 上書き保存</button>
+  <button class="btn btn-ghost" id="exportFileBtn">⬇ ファイルに保存</button>
+  <button class="btn btn-ghost" id="loadDataBtn">📂 ファイルを読込</button>
+  <input type="file" id="loadDataInput" accept="application/json" style="display:none">
+</div>
+
+<div class="layout">
+  <div class="tab-index" id="tabIndex"></div>
+  <div class="content" id="content"></div>
+</div>
+
+<div id="pdf-render-area"></div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+const state = {
+  bank: [],           // {date, desc, deposit, withdrawal, balance|null}
+  company: [],        // {date, desc, amount}
+  president: [],      // {date, desc, amount}
+  selectedMonth: null, // 'overview' or 'YYYY-MM'
+  detailTab: 'bank',  // 'bank' | 'company' | 'president'  (within a month view)
+  sort: {
+    bank: { col:'date', dir:'asc' },
+    company: { col:'date', dir:'asc' },
+    president: { col:'date', dir:'asc' }
+  }
+};
+
+const COMPANY_NAME = '株式会社Neight';
+
+const FILE_META = {
+  bank:      { title:'銀行口座',       sub:'入出金明細 CSV / Excel', icon:'🏦', cls:'bank' },
+  company:   { title:'会社カード',     sub:'記録用・集計対象外', icon:'💳', cls:'company' },
+  president: { title:'社長カード',     sub:'記録用・集計対象外', icon:'💳', cls:'president' }
+};
+
+const KEYWORDS = {
+  date: ['取引日','ご利用日','利用日','年月日','日付'],
+  desc: ['摘要','内容','適用','お取引内容','ご利用店名','利用店名','店名','摘要内容'],
+  deposit: ['お預け入れ','入金金額','入金額','入金','預入','貸方'],
+  withdrawal: ['お引き出し','出金金額','出金額','出金','引出','お支払金額','借方'],
+  balance: ['差引残高','残高'],
+  amount: ['ご利用金額','利用金額','金額']
+};
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function toast(msg, type){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' '+type : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3600);
+}
+
+function yen(n){
+  const v = Math.round(n || 0);
+  return v.toLocaleString('ja-JP');
+}
+
+function monthKey(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function monthLabel(key){
+  const [y,m] = key.split('-');
+  return { year:y, month:parseInt(m,10) };
+}
+
+function parseNum(v){
+  if (v === undefined || v === null) return 0;
+  let s = String(v).trim();
+  if (s === '' || s === '-' || s === '−') return 0;
+  s = s.replace(/[,¥￥円\s]/g,'');
+  s = s.replace(/^"|"$/g,'');
+  // handle parentheses as negative e.g. (1,000)
+  let neg = false;
+  if (/^\(.*\)$/.test(s)) { neg = true; s = s.replace(/[()]/g,''); }
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  return neg ? -n : n;
+}
+
+function parseDateStr(str){
+  if (!str) return null;
+  let s = String(str).trim();
+  if (!s) return null;
+  s = s.replace(/[／]/g,'/').replace(/[　]/g,' ');
+  let m;
+  // 令和/R era: R8.7.1 / 令和8年7月1日
+  if ((m = s.match(/^[Rr令]\D{0,2}(\d{1,2})[\.\/年](\d{1,2})[\.\/月](\d{1,2})日?$/))) {
+    return new Date(2018 + parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  }
+  // yyyy/mm/dd or yyyy-mm-dd or yyyy年mm月dd日
+  if ((m = s.match(/^(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})日?/))) {
+    return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  }
+  // yy/mm/dd
+  if ((m = s.match(/^(\d{2})[\/\-](\d{1,2})[\/\-](\d{1,2})$/))) {
+    return new Date(2000 + parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+  return null;
+}
+
+function findCol(headers, keywords){
+  for (let i=0;i<headers.length;i++){
+    const h = (headers[i]||'').toString().trim();
+    if (!h) continue;
+    if (keywords.some(k => h.includes(k))) return i;
+  }
+  return -1;
+}
+
+/* find the most likely header row within first N rows of a raw 2D array */
+function findHeaderRowIndex(rows, requiredKeywordGroups){
+  const limit = Math.min(rows.length, 12);
+  let best = { idx:-1, score:-1 };
+  for (let i=0;i<limit;i++){
+    const row = rows[i].map(c => (c===undefined||c===null)?'':String(c));
+    let score = 0;
+    requiredKeywordGroups.forEach(group=>{
+      if (findCol(row, group) !== -1) score++;
+    });
+    if (score > best.score){ best = { idx:i, score }; }
+  }
+  return best;
+}
+
+/* ============================================================
+   FILE READING
+   ============================================================ */
+async function readCsvAsRows(file){
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let text;
+  try{
+    const detected = Encoding.detect(bytes);
+    const unicodeArr = Encoding.convert(bytes, { to:'UNICODE', from: detected || 'AUTO' });
+    text = Encoding.codeToString(unicodeArr);
+  }catch(e){
+    text = new TextDecoder('utf-8').decode(bytes);
+  }
+  const parsed = Papa.parse(text, { skipEmptyLines:true });
+  return parsed.data;
+}
+
+async function readExcelAsRows(file){
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type:'array', cellDates:false });
+  const sheetName = wb.SheetNames[0];
+  const sheet = wb.Sheets[sheetName];
+  return XLSX.utils.sheet_to_json(sheet, { header:1, defval:'', raw:false });
+}
+
+async function readFileAsRows(file){
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.txt')){
+    return readCsvAsRows(file);
+  } else if (name.endsWith('.xlsx') || name.endsWith('.xls')){
+    return readExcelAsRows(file);
+  } else {
+    // try csv fallback
+    return readCsvAsRows(file);
+  }
+}
+
+/* ============================================================
+   TRANSACTION BUILDERS
+   ============================================================ */
+function dedupeKeyBank(t){
+  return [monthKeyExact(t.date), t.desc, t.deposit, t.withdrawal, t.balance].join('|');
+}
+function monthKeyExact(d){ return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+
+function buildBankFromRows(rows){
+  if (!rows || !rows.length) return { error:'empty' };
+  const headerScan = findHeaderRowIndex(rows, [KEYWORDS.date, KEYWORDS.deposit.concat(KEYWORDS.withdrawal)]);
+  const headerIdx = headerScan.idx === -1 ? 0 : headerScan.idx;
+  const header = rows[headerIdx].map(c => (c===undefined||c===null)?'':String(c));
+  const idx = {
+    date: findCol(header, KEYWORDS.date),
+    desc: findCol(header, KEYWORDS.desc),
+    deposit: findCol(header, KEYWORDS.deposit),
+    withdrawal: findCol(header, KEYWORDS.withdrawal),
+    balance: findCol(header, KEYWORDS.balance)
+  };
+  if (idx.date === -1 || (idx.deposit === -1 && idx.withdrawal === -1)){
+    return { error:'mapping_failed', header, idx, headerIdx, rows };
+  }
+  return finalizeBankRows(rows, headerIdx, idx);
+}
+
+function finalizeBankRows(rows, headerIdx, idx){
+  const txns = [];
+  for (let r=headerIdx+1;r<rows.length;r++){
+    const row = rows[r];
+    if (!row) continue;
+    const dateRaw = row[idx.date];
+    const date = parseDateStr(dateRaw);
+    if (!date) continue;
+    const deposit = idx.deposit>=0 ? parseNum(row[idx.deposit]) : 0;
+    const withdrawal = idx.withdrawal>=0 ? parseNum(row[idx.withdrawal]) : 0;
+    const balanceRaw = idx.balance>=0 ? row[idx.balance] : '';
+    const balance = (idx.balance>=0 && String(balanceRaw).trim()!=='') ? parseNum(balanceRaw) : null;
+    if (deposit===0 && withdrawal===0 && balance===null) continue;
+    txns.push({
+      date,
+      desc: idx.desc>=0 ? String(row[idx.desc]||'').trim() : '',
+      deposit, withdrawal, balance
+    });
+  }
+  return { txns };
+}
+
+function buildCardFromRows(rows){
+  if (!rows || !rows.length) return { error:'empty' };
+  const headerScan = findHeaderRowIndex(rows, [KEYWORDS.date, KEYWORDS.amount]);
+  const headerIdx = headerScan.idx === -1 ? 0 : headerScan.idx;
+  const header = rows[headerIdx].map(c => (c===undefined||c===null)?'':String(c));
+  const idx = {
+    date: findCol(header, KEYWORDS.date),
+    desc: findCol(header, KEYWORDS.desc),
+    amount: findCol(header, KEYWORDS.amount.concat(KEYWORDS.withdrawal))
+  };
+  if (idx.date === -1 || idx.amount === -1){
+    return { error:'mapping_failed', header, idx, headerIdx, rows };
+  }
+  return finalizeCardRows(rows, headerIdx, idx);
+}
+
+function finalizeCardRows(rows, headerIdx, idx){
+  const txns = [];
+  for (let r=headerIdx+1;r<rows.length;r++){
+    const row = rows[r];
+    if (!row) continue;
+    const date = parseDateStr(row[idx.date]);
+    if (!date) continue;
+    const amount = parseNum(row[idx.amount]);
+    if (amount === 0) continue;
+    txns.push({
+      date,
+      desc: idx.desc>=0 ? String(row[idx.desc]||'').trim() : '',
+      amount: Math.abs(amount)
+    });
+  }
+  return { txns };
+}
+
+/* ============================================================
+   MERGE / DEDUPE INTO STATE
+   ============================================================ */
+function mergeBank(newTxns){
+  const existingKeys = new Set(state.bank.map(dedupeKeyBank));
+  let added = 0;
+  newTxns.forEach(t=>{
+    const k = dedupeKeyBank(t);
+    if (!existingKeys.has(k)){ state.bank.push(t); existingKeys.add(k); added++; }
+  });
+  state.bank.sort((a,b)=>a.date-b.date);
+  return added;
+}
+function mergeCard(target, newTxns){
+  const existingKeys = new Set(state[target].map(t => monthKeyExact(t.date)+'|'+t.desc+'|'+t.amount));
+  let added = 0;
+  newTxns.forEach(t=>{
+    const k = monthKeyExact(t.date)+'|'+t.desc+'|'+t.amount;
+    if (!existingKeys.has(k)){ state[target].push(t); existingKeys.add(k); added++; }
+  });
+  state[target].sort((a,b)=>a.date-b.date);
+  return added;
+}
+
+/* ============================================================
+   GROUPING & CALCULATIONS
+   ============================================================ */
+function allMonthKeys(){
+  const set = new Set();
+  state.bank.forEach(t=>set.add(monthKey(t.date)));
+  state.company.forEach(t=>set.add(monthKey(t.date)));
+  state.president.forEach(t=>set.add(monthKey(t.date)));
+  return Array.from(set).sort();
+}
+
+function bankMonthlyStats(){
+  const opening = parseNum(document.getElementById('openingBalance').value);
+  const hasBalanceCol = state.bank.some(t=>t.balance !== null);
+  const sorted = [...state.bank].sort((a,b)=>a.date-b.date);
+  let running = opening;
+  const enriched = sorted.map(t=>{
+    running += (t.deposit - t.withdrawal);
+    const runningBalance = hasBalanceCol && t.balance !== null ? t.balance : running;
+    if (hasBalanceCol && t.balance !== null) running = t.balance;
+    return Object.assign({}, t, { runningBalance });
+  });
+  const months = {};
+  enriched.forEach(t=>{
+    const k = monthKey(t.date);
+    if (!months[k]) months[k] = { key:k, txns:[], deposit:0, withdrawal:0 };
+    months[k].txns.push(t);
+    months[k].deposit += t.deposit;
+    months[k].withdrawal += t.withdrawal;
+  });
+  const keys = Object.keys(months).sort();
+  let carry = opening;
+  keys.forEach(k=>{
+    const m = months[k];
+    m.startBalance = carry;
+    m.net = m.deposit - m.withdrawal;
+    const last = m.txns[m.txns.length-1];
+    m.endBalance = last ? last.runningBalance : carry;
+    carry = m.endBalance;
+  });
+  return { months, keys, opening };
+}
+
+function cardMonthlyTotal(target, key){
+  return state[target].filter(t=>monthKey(t.date)===key).reduce((s,t)=>s+t.amount,0);
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+function renderUploadRow(){
+  const wrap = document.getElementById('uploadRow');
+  wrap.innerHTML = '';
+  Object.keys(FILE_META).forEach(key=>{
+    const meta = FILE_META[key];
+    const count = state[key].length;
+    const div = document.createElement('div');
+    div.className = 'dropzone ' + meta.cls + (count ? ' filled':'');
+    div.innerHTML = `
+      <div class="dz-icon">${meta.icon}</div>
+      <div class="dz-label">${key==='bank' ? '集計対象' : '記録専用'}</div>
+      <div class="dz-title">${meta.title}</div>
+      <div class="dz-sub">${meta.sub}</div>
+      <div class="dz-status">${count ? count + ' 件のデータを読込済み' : 'CSV / Excelファイルをドラッグ＆ドロップ、またはクリックして選択'}</div>
+      ${count ? '<button class="dz-clear" data-clear="'+key+'">クリア</button>' : ''}
+      <input type="file" accept=".csv,.xlsx,.xls,.txt" style="display:none" data-input="${key}">
+    `;
+    wrap.appendChild(div);
+
+    const input = div.querySelector('[data-input]');
+    div.addEventListener('click', (e)=>{ if (e.target.dataset.clear) return; input.click(); });
+    input.addEventListener('change', (e)=>{ if (e.target.files.length) handleFiles(key, e.target.files); e.target.value=''; });
+    div.addEventListener('dragover', (e)=>{ e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', ()=> div.classList.remove('drag-over'));
+    div.addEventListener('drop', (e)=>{
+      e.preventDefault(); div.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) handleFiles(key, e.dataTransfer.files);
+    });
+    const clearBtn = div.querySelector('[data-clear]');
+    if (clearBtn){
+      clearBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state[key] = [];
+        toast(meta.title + ' のデータをクリアしました');
+        renderAll();
+      });
+    }
+  });
+}
+
+function renderTabIndex(){
+  const wrap = document.getElementById('tabIndex');
+  wrap.innerHTML = '';
+  const keys = allMonthKeys();
+
+  const overviewTab = document.createElement('div');
+  overviewTab.className = 'ledger-tab overview' + (state.selectedMonth==='overview' ? ' active':'');
+  overviewTab.innerHTML = `<span class="mo">全体</span>`;
+  overviewTab.addEventListener('click', ()=>{ state.selectedMonth='overview'; renderAll(); });
+  wrap.appendChild(overviewTab);
+
+  if (!keys.length){
+    const empty = document.createElement('div');
+    empty.className = 'tab-empty';
+    empty.textContent = 'データを\nドロップすると\nここに月が\n並びます';
+    empty.style.whiteSpace = 'pre-line';
+    wrap.appendChild(empty);
+    return;
+  }
+
+  keys.forEach(k=>{
+    const { year, month } = monthLabel(k);
+    const tab = document.createElement('div');
+    tab.className = 'ledger-tab' + (state.selectedMonth===k ? ' active':'');
+    tab.innerHTML = `<span class="yr">${year}年</span><span class="mo">${month}月</span>`;
+    tab.addEventListener('click', ()=>{ state.selectedMonth=k; renderAll(); });
+    wrap.appendChild(tab);
+  });
+
+  if (!state.selectedMonth || (state.selectedMonth!=='overview' && !keys.includes(state.selectedMonth))){
+    state.selectedMonth = keys[keys.length-1];
+  }
+}
+
+function renderContent(){
+  const content = document.getElementById('content');
+  const keys = allMonthKeys();
+
+  if (!keys.length){
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="big">まずは銀行口座のデータをドロップしてください</div>
+        <div>CSV／Excelファイルをアップロードすると、月ごとの入金・出金・収支を自動で計算します。</div>
+      </div>`;
+    return;
+  }
+
+  if (state.selectedMonth === 'overview'){
+    renderOverview(content);
+  } else {
+    renderMonth(content, state.selectedMonth);
+  }
+}
+
+function renderOverview(content){
+  const { months, keys, opening } = bankMonthlyStats();
+  let totalIn=0, totalOut=0;
+  keys.forEach(k=>{ totalIn += months[k].deposit; totalOut += months[k].withdrawal; });
+
+  let rows = keys.map(k=>{
+    const { year, month } = monthLabel(k);
+    const m = months[k];
+    return `<tr>
+      <td>${year}年${month}月</td>
+      <td class="mono">${yen(m.startBalance)}</td>
+      <td class="mono" style="color:var(--in-green)">+${yen(m.deposit)}</td>
+      <td class="mono" style="color:var(--out-clay)">-${yen(m.withdrawal)}</td>
+      <td class="mono" style="font-weight:700;color:${m.net>=0?'var(--in-green)':'var(--out-clay)'}">${m.net>=0?'+':''}${yen(m.net)}</td>
+      <td class="mono" style="font-weight:700">${yen(m.endBalance)}</td>
+      <td style="text-align:center;"><button class="row-delete-btn" title="この月のデータを削除" onclick="deleteMonth('${k}')">🗑</button></td>
+    </tr>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="month-head">
+      <h2>全体サマリー <span class="sub">${keys.length ? monthLabel(keys[0]).year+'年'+monthLabel(keys[0]).month+'月 〜 '+monthLabel(keys[keys.length-1]).year+'年'+monthLabel(keys[keys.length-1]).month+'月' : ''}</span></h2>
+    </div>
+    <div class="stat-row" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat-card in"><div class="label">入金合計（全期間）</div><div class="value">+${yen(totalIn)}</div></div>
+      <div class="stat-card out"><div class="label">出金合計（全期間）</div><div class="value">-${yen(totalOut)}</div></div>
+      <div class="stat-card net"><div class="label">収支合計（全期間）</div><div class="value ${totalIn-totalOut>=0?'pos':'neg'}">${totalIn-totalOut>=0?'+':''}${yen(totalIn-totalOut)}</div></div>
+    </div>
+    <div class="chart-wrap"><canvas id="overviewChart"></canvas></div>
+    <table class="overview-table">
+      <thead><tr><th>月</th><th>繰越残高</th><th>入金</th><th>出金</th><th>収支</th><th>月末残高</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  drawOverviewChart(keys, months);
+}
+
+let overviewChartInstance = null;
+function drawOverviewChart(keys, months){
+  const ctx = document.getElementById('overviewChart');
+  if (!ctx || typeof Chart === 'undefined') return;
+  if (overviewChartInstance) overviewChartInstance.destroy();
+  const labels = keys.map(k=>{ const {year,month}=monthLabel(k); return year+'/'+month; });
+  overviewChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'入金', data: keys.map(k=>months[k].deposit), backgroundColor:'#2E7D5B' },
+        { label:'出金', data: keys.map(k=>months[k].withdrawal), backgroundColor:'#B5502E' }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{ legend:{ position:'top', labels:{ font:{ family:"'Noto Sans JP',sans-serif" } } } },
+      scales:{
+        x:{ ticks:{ font:{ family:"'Roboto Mono',monospace" } } },
+        y:{ ticks:{ callback:v=>v.toLocaleString('ja-JP'), font:{ family:"'Roboto Mono',monospace" } } }
+      }
+    }
+  });
+}
+
+function sortValue(t, col){
+  if (col==='date') return t.date.getTime();
+  if (col==='deposit') return t.deposit || 0;
+  if (col==='withdrawal') return t.withdrawal || 0;
+  if (col==='amount') return t.amount || 0;
+  return 0;
+}
+function getSorted(type, txns){
+  const spec = state.sort[type];
+  const arr = [...txns];
+  arr.sort((a,b)=>{
+    const va = sortValue(a, spec.col), vb = sortValue(b, spec.col);
+    return spec.dir==='asc' ? va-vb : vb-va;
+  });
+  return arr;
+}
+function toggleSort(type, col){
+  const spec = state.sort[type];
+  if (spec.col === col){
+    spec.dir = spec.dir==='asc' ? 'desc' : 'asc';
+  } else {
+    spec.col = col;
+    spec.dir = (col==='date') ? 'asc' : 'desc';
+  }
+  renderContent();
+}
+function sortArrow(type, col){
+  const spec = state.sort[type];
+  if (spec.col!==col) return '<span class="sort-ind">↕</span>';
+  return spec.dir==='asc' ? '<span class="sort-ind active">▲</span>' : '<span class="sort-ind active">▼</span>';
+}
+function th(type, col, label, align){
+  return `<th class="sortable" style="${align?'text-align:'+align+';':''}" onclick="toggleSort('${type}','${col}')">${label}${sortArrow(type,col)}</th>`;
+}
+
+function renderMonth(content, key){
+  const { months } = bankMonthlyStats();
+  const m = months[key] || { txns:[], deposit:0, withdrawal:0, startBalance:0, endBalance:0, net:0 };
+  const { year, month } = monthLabel(key);
+
+  const companyTxns = state.company.filter(t=>monthKey(t.date)===key);
+  const presidentTxns = state.president.filter(t=>monthKey(t.date)===key);
+  const companyTotal = companyTxns.reduce((s,t)=>s+t.amount,0);
+  const presidentTotal = presidentTxns.reduce((s,t)=>s+t.amount,0);
+
+  const tabDefs = [
+    { id:'bank', label:'銀行口座明細', count: m.txns.length },
+    { id:'company', label:'会社カード明細', count: companyTxns.length },
+    { id:'president', label:'社長カード明細', count: presidentTxns.length }
+  ];
+  if (!['bank','company','president'].includes(state.detailTab)) state.detailTab = 'bank';
+
+  const tabsHtml = tabDefs.map(t=>`
+    <button class="detail-tab-btn${state.detailTab===t.id?' active':''}" onclick="setDetailTab('${t.id}')">${t.label}<span class="cnt">${t.count}件</span></button>
+  `).join('');
+
+  let bodyHtml = '';
+  if (state.detailTab === 'bank'){
+    const sorted = getSorted('bank', m.txns);
+    const rows = sorted.map(t=>`
+      <tr>
+        <td class="date-cell">${t.date.getMonth()+1}/${t.date.getDate()}</td>
+        <td>${escapeHtml(t.desc)}</td>
+        <td class="num in-amt">${t.deposit ? '+'+yen(t.deposit) : ''}</td>
+        <td class="num out-amt">${t.withdrawal ? '-'+yen(t.withdrawal) : ''}</td>
+        <td class="num">${yen(t.runningBalance)}</td>
+      </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--ink-soft);padding:20px;">この月の銀行データはありません</td></tr>`;
+    bodyHtml = `
+      <table class="ledger-table">
+        <thead><tr>
+          ${th('bank','date','日付')}
+          <th>摘要</th>
+          ${th('bank','deposit','入金','right')}
+          ${th('bank','withdrawal','出金','right')}
+          <th style="text-align:right">残高</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } else {
+    const target = state.detailTab; // company | president
+    const txns = target==='company' ? companyTxns : presidentTxns;
+    const total = target==='company' ? companyTotal : presidentTotal;
+    const sorted = getSorted(target, txns);
+    const rows = sorted.map(t=>`
+      <tr><td class="date-cell">${t.date.getMonth()+1}/${t.date.getDate()}</td><td>${escapeHtml(t.desc)}</td><td class="num">${yen(t.amount)}</td></tr>
+    `).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--ink-soft);padding:20px;">この月のデータはありません</td></tr>`;
+    bodyHtml = `
+      <div class="card-section" style="padding-top:2px;">
+        <div class="section-title"><span class="badge">記録用・集計対象外</span></div>
+        <div class="total-line">この月の利用合計：<b>${yen(total)}円</b>（銀行口座からの引き落とし分のため、上の入出金合計には含まれません）</div>
+        <table class="ledger-table">
+          <thead><tr>
+            ${th(target,'date','日付')}
+            <th>利用先</th>
+            ${th(target,'amount','金額','right')}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  content.innerHTML = `
+    <div class="month-head">
+      <h2>${year}年${month}月</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-danger" id="deleteMonthBtn">🗑 この月のデータを削除</button>
+        <button class="btn btn-primary" id="exportPdfBtn">📄 この月をPDF出力</button>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="label">前月繰越</div><div class="value">${yen(m.startBalance)}</div></div>
+      <div class="stat-card in"><div class="label">入金合計</div><div class="value">+${yen(m.deposit)}</div></div>
+      <div class="stat-card out"><div class="label">出金合計</div><div class="value">-${yen(m.withdrawal)}</div></div>
+      <div class="stat-card net"><div class="label">収支</div><div class="value ${m.net>=0?'pos':'neg'}">${m.net>=0?'+':''}${yen(m.net)}</div></div>
+      <div class="stat-card"><div class="label">月末残高</div><div class="value">${yen(m.endBalance)}</div></div>
+    </div>
+
+    <div class="detail-tabs">${tabsHtml}</div>
+    ${bodyHtml}
+  `;
+
+  document.getElementById('exportPdfBtn').addEventListener('click', ()=>exportMonthPdf(key, m, companyTxns, presidentTxns, companyTotal, presidentTotal));
+  document.getElementById('deleteMonthBtn').addEventListener('click', ()=> deleteMonth(key));
+}
+
+function setDetailTab(id){
+  state.detailTab = id;
+  renderContent();
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderAll(){
+  renderUploadRow();
+  renderTabIndex();
+  renderContent();
+}
+
+/* ============================================================
+   FILE HANDLING PIPELINE
+   ============================================================ */
+async function handleFiles(key, fileList){
+  for (const file of Array.from(fileList)){
+    try{
+      const rows = await readFileAsRows(file);
+      if (!rows || !rows.length){ toast(file.name+'：データを読み取れませんでした', 'err'); continue; }
+
+      if (key === 'bank'){
+        const result = buildBankFromRows(rows);
+        if (result.error === 'mapping_failed'){
+          openMappingModal('bank', file.name, result, (mappedIdx)=>{
+            const built = finalizeBankRows(result.rows, result.headerIdx, mappedIdx);
+            const added = mergeBank(built.txns);
+            toast(file.name+'：'+added+'件を取り込みました', 'ok');
+            renderAll();
+          });
+        } else if (result.error === 'empty'){
+          toast(file.name+'：データが空です', 'err');
+        } else {
+          const added = mergeBank(result.txns);
+          toast(file.name+'：'+added+'件を取り込みました', 'ok');
+          renderAll();
+        }
+      } else {
+        const result = buildCardFromRows(rows);
+        if (result.error === 'mapping_failed'){
+          openMappingModal('card', file.name, result, (mappedIdx)=>{
+            const built = finalizeCardRows(result.rows, result.headerIdx, mappedIdx);
+            const added = mergeCard(key, built.txns);
+            toast(file.name+'：'+added+'件を取り込みました', 'ok');
+            renderAll();
+          });
+        } else if (result.error === 'empty'){
+          toast(file.name+'：データが空です', 'err');
+        } else {
+          const added = mergeCard(key, result.txns);
+          toast(file.name+'：'+added+'件を取り込みました', 'ok');
+          renderAll();
+        }
+      }
+    }catch(err){
+      console.error(err);
+      toast(file.name+'：読み込み中にエラーが発生しました', 'err');
+    }
+  }
+}
+
+/* ============================================================
+   MANUAL MAPPING MODAL (fallback when auto-detect fails)
+   ============================================================ */
+function openMappingModal(type, filename, result, onConfirm){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const header = result.header.map((h,i)=> `<option value="${i}">${i+1}: ${escapeHtml(h) || '(空欄)'}</option>`).join('');
+
+  const fields = type==='bank'
+    ? [ ['date','日付列 *'], ['deposit','入金列 *'], ['withdrawal','出金列 *'], ['balance','残高列（任意）'], ['desc','摘要列（任意）'] ]
+    : [ ['date','日付列 *'], ['amount','金額列 *'], ['desc','利用先列（任意）'] ];
+
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>列の対応付けが必要です</h3>
+      <p class="desc">「${escapeHtml(filename)}」の列を自動で判別できませんでした。各項目に対応する列を選んでください。（* は必須）</p>
+      ${fields.map(([f,label])=>`
+        <div class="map-row">
+          <label>${label}</label>
+          <select data-field="${f}">
+            <option value="-1">-- 選択しない --</option>
+            ${header}
+          </select>
+        </div>
+      `).join('')}
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="mapCancel">キャンセル</button>
+        <button class="btn btn-primary" id="mapConfirm">この設定で取り込む</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // pre-select best guesses
+  fields.forEach(([f])=>{
+    const sel = overlay.querySelector(`select[data-field="${f}"]`);
+    const guess = result.idx[f];
+    if (guess !== undefined && guess !== -1) sel.value = guess;
+  });
+
+  overlay.querySelector('#mapCancel').addEventListener('click', ()=> overlay.remove());
+  overlay.querySelector('#mapConfirm').addEventListener('click', ()=>{
+    const mapped = {};
+    fields.forEach(([f])=>{
+      mapped[f] = parseInt(overlay.querySelector(`select[data-field="${f}"]`).value, 10);
+    });
+    const requiredOk = type==='bank'
+      ? (mapped.date>=0 && (mapped.deposit>=0 || mapped.withdrawal>=0))
+      : (mapped.date>=0 && mapped.amount>=0);
+    if (!requiredOk){
+      toast('必須項目が選択されていません', 'err');
+      return;
+    }
+    overlay.remove();
+    onConfirm(mapped);
+  });
+}
+
+/* ============================================================
+   PDF EXPORT
+   ============================================================ */
+async function exportMonthPdf(key, m, companyTxns, presidentTxns, companyTotal, presidentTotal){
+  const { year, month } = monthLabel(key);
+  const area = document.getElementById('pdf-render-area');
+
+  const bankRows = m.txns.map(t=>`
+    <tr class="brk"><td>${t.date.getFullYear()}/${t.date.getMonth()+1}/${t.date.getDate()}</td><td>${escapeHtml(t.desc)}</td>
+    <td class="num">${t.deposit?yen(t.deposit):''}</td><td class="num">${t.withdrawal?yen(t.withdrawal):''}</td><td class="num">${yen(t.runningBalance)}</td></tr>
+  `).join('') || '<tr class="brk"><td colspan="5" style="text-align:center;">データなし</td></tr>';
+
+  const cardRowsHtml = (txns)=> txns.length ? txns.map(t=>`
+    <tr class="brk"><td>${t.date.getMonth()+1}/${t.date.getDate()}</td><td>${escapeHtml(t.desc)}</td><td class="num">${yen(t.amount)}</td></tr>
+  `).join('') : '<tr class="brk"><td colspan="3" style="text-align:center;">データなし</td></tr>';
+
+  area.innerHTML = `
+    <div class="letterhead brk">
+      <span class="company">${escapeHtml(COMPANY_NAME)}</span>
+      <span class="doc-date">作成日：${new Date().toLocaleDateString('ja-JP')}</span>
+    </div>
+    <h2>出納帳　${year}年${month}月</h2>
+    <div class="stat-grid brk">
+      <div><span class="lab">前月繰越</span><span class="val">${yen(m.startBalance)}円</span></div>
+      <div><span class="lab">入金合計</span><span class="val">+${yen(m.deposit)}円</span></div>
+      <div><span class="lab">出金合計</span><span class="val">-${yen(m.withdrawal)}円</span></div>
+      <div><span class="lab">収支</span><span class="val">${m.net>=0?'+':''}${yen(m.net)}円</span></div>
+      <div><span class="lab">月末残高</span><span class="val">${yen(m.endBalance)}円</span></div>
+    </div>
+    <table>
+      <thead><tr><th>日付</th><th>摘要</th><th>入金</th><th>出金</th><th>残高</th></tr></thead>
+      <tbody>${bankRows}</tbody>
+    </table>
+    <hr class="rule brk">
+    <h2 style="font-size:15px;">会社カード（記録用・集計対象外／合計 ${yen(companyTotal)}円）</h2>
+    <table><thead><tr><th>日付</th><th>利用先</th><th>金額</th></tr></thead><tbody>${cardRowsHtml(companyTxns)}</tbody></table>
+    <hr class="rule brk">
+    <h2 style="font-size:15px;">社長カード（記録用・集計対象外／合計 ${yen(presidentTotal)}円）</h2>
+    <table><thead><tr><th>日付</th><th>利用先</th><th>金額</th></tr></thead><tbody>${cardRowsHtml(presidentTxns)}</tbody></table>
+    <div class="pdf-footer brk">${escapeHtml(COMPANY_NAME)}　出納帳（${year}年${month}月分）</div>
+  `;
+
+  toast('PDFを生成しています…');
+  await new Promise(r=>setTimeout(r, 60)); // allow layout to settle
+
+  try{
+    const canvas = await html2canvas(area, { scale:2, backgroundColor:'#ffffff', windowWidth:area.scrollWidth });
+    const breakpoints = getBreakpointsPx(area, canvas);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l','pt','a4'); // landscape: better fit for wide ledger tables
+    canvasToPdfPages(canvas, pdf, breakpoints);
+    pdf.save(`出納帳_${COMPANY_NAME}_${year}${String(month).padStart(2,'0')}.pdf`);
+    toast('PDFを保存しました', 'ok');
+  }catch(err){
+    console.error(err);
+    toast('PDF出力に失敗しました', 'err');
+  }
+}
+
+/* Collect pixel offsets (in canvas coordinate space) after which a page break is safe,
+   i.e. after a full table row / rule / stat block — never mid-row. */
+function getBreakpointsPx(container, canvas){
+  const scaleFactor = canvas.height / container.scrollHeight;
+  const contTop = container.getBoundingClientRect().top;
+  const nodes = container.querySelectorAll('.brk');
+  const pts = new Set();
+  nodes.forEach(n=>{
+    const r = n.getBoundingClientRect();
+    const bottom = Math.round((r.bottom - contTop) * scaleFactor);
+    if (bottom > 0 && bottom <= canvas.height) pts.add(bottom);
+  });
+  pts.add(canvas.height);
+  return Array.from(pts).sort((a,b)=>a-b);
+}
+
+function canvasToPdfPages(canvas, pdf, breakpoints){
+  const pageWidthPt = pdf.internal.pageSize.getWidth();
+  const pageHeightPt = pdf.internal.pageSize.getHeight();
+  const margin = 26;
+  const usableWidthPt = pageWidthPt - margin*2;
+  const usableHeightPt = pageHeightPt - margin*2;
+  const ratio = usableWidthPt / canvas.width; // pt per px
+  const usableHeightPx = usableHeightPt / ratio;
+
+  let renderedPx = 0;
+  let first = true;
+  while (renderedPx < canvas.height - 1){
+    const target = renderedPx + usableHeightPx;
+    // pick the furthest safe breakpoint that still fits on this page
+    const candidates = breakpoints.filter(p => p > renderedPx + 4 && p <= target);
+    let sliceEnd = candidates.length ? candidates[candidates.length-1] : Math.min(target, canvas.height);
+    if (sliceEnd <= renderedPx) sliceEnd = Math.min(target, canvas.height); // safety fallback
+    const sliceHeightPx = Math.min(sliceEnd - renderedPx, canvas.height - renderedPx);
+
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = Math.ceil(sliceHeightPx);
+    const ctx = pageCanvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,pageCanvas.width,pageCanvas.height);
+    ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+    const imgData = pageCanvas.toDataURL('image/png');
+    if (!first) pdf.addPage();
+    pdf.addImage(imgData, 'PNG', margin, margin, usableWidthPt, sliceHeightPx*ratio);
+    renderedPx += sliceHeightPx;
+    first = false;
+  }
+}
+
+/* ============================================================
+   SAVE / LOAD DATA
+   Primary: overwrite-save into the browser's persistent artifact
+   storage (window.storage) so re-opening this app restores the data
+   automatically. Secondary: export/import as a JSON file for backup
+   or moving data to another browser.
+   ============================================================ */
+const STORAGE_KEY = 'cashbook_state_v1';
+
+function serializeTxns(list, hasBalance){
+  return list.map(t=>{
+    const o = { date: t.date.toISOString(), desc: t.desc };
+    if (hasBalance){ o.deposit = t.deposit; o.withdrawal = t.withdrawal; o.balance = t.balance; }
+    else { o.amount = t.amount; }
+    return o;
+  });
+}
+
+function buildStatePayload(){
+  return {
+    type: 'suitoubox-cashbook-data',
+    version: 1,
+    savedAt: new Date().toISOString(),
+    openingBalance: document.getElementById('openingBalance').value,
+    bank: serializeTxns(state.bank, true),
+    company: serializeTxns(state.company, false),
+    president: serializeTxns(state.president, false)
+  };
+}
+
+function applyLoadedData(data){
+  state.bank = (data.bank||[]).map(o=>({ date:new Date(o.date), desc:o.desc||'', deposit:o.deposit||0, withdrawal:o.withdrawal||0, balance:(o.balance===undefined?null:o.balance) }));
+  state.company = (data.company||[]).map(o=>({ date:new Date(o.date), desc:o.desc||'', amount:o.amount||0 }));
+  state.president = (data.president||[]).map(o=>({ date:new Date(o.date), desc:o.desc||'', amount:o.amount||0 }));
+  if (data.openingBalance !== undefined) document.getElementById('openingBalance').value = data.openingBalance;
+  state.selectedMonth = null;
+}
+
+function setSaveStatus(text, ok){
+  const el = document.getElementById('saveStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'save-status' + (ok ? ' ok' : '');
+}
+
+async function saveToBrowser(){
+  if (!state.bank.length && !state.company.length && !state.president.length){
+    toast('保存するデータがありません', 'err');
+    return;
+  }
+  if (!window.storage || typeof window.storage.set !== 'function'){
+    toast('この環境ではブラウザ保存が使えません。「ファイルに保存」をご利用ください', 'err');
+    return;
+  }
+  try{
+    const payload = buildStatePayload();
+    const res = await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
+    if (!res) throw new Error('storage set failed');
+    const now = new Date();
+    setSaveStatus('保存済み：' + now.toLocaleTimeString('ja-JP', {hour:'2-digit',minute:'2-digit'}), true);
+    toast('ブラウザに上書き保存しました', 'ok');
+  }catch(err){
+    console.error(err);
+    toast('保存に失敗しました。「ファイルに保存」もお試しください', 'err');
+  }
+}
+
+async function loadFromBrowserOnStartup(){
+  if (!window.storage || typeof window.storage.get !== 'function') return;
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if (res && res.value){
+      const data = JSON.parse(res.value);
+      applyLoadedData(data);
+      setSaveStatus('前回の保存データを読込済み', true);
+      renderAll();
+    }
+  }catch(err){
+    // no saved data yet - nothing to do
+  }
+}
+
+function exportStateJson(){
+  if (!state.bank.length && !state.company.length && !state.president.length){
+    toast('保存するデータがありません', 'err');
+    return;
+  }
+  const payload = buildStatePayload();
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  a.href = url;
+  a.download = `出納帳データ_${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('ファイルに保存しました', 'ok');
+}
+
+async function importStateJsonFile(file){
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (data.type !== 'suitoubox-cashbook-data') throw new Error('invalid format');
+    applyLoadedData(data);
+    toast('ファイルからデータを読み込みました', 'ok');
+    renderAll();
+  }catch(err){
+    console.error(err);
+    toast('読み込みに失敗しました。正しい保存ファイルか確認してください', 'err');
+  }
+}
+
+/* ============================================================
+   DELETE MONTH
+   ============================================================ */
+function deleteMonth(key){
+  const { year, month } = monthLabel(key);
+  showConfirm(
+    `${year}年${month}月のデータ（銀行・会社カード・社長カード）をすべて削除します。よろしいですか？`,
+    ()=>{
+      state.bank = state.bank.filter(t=>monthKey(t.date)!==key);
+      state.company = state.company.filter(t=>monthKey(t.date)!==key);
+      state.president = state.president.filter(t=>monthKey(t.date)!==key);
+      if (state.selectedMonth === key) state.selectedMonth = null;
+      toast(`${year}年${month}月のデータを削除しました（「上書き保存」で確定します）`, 'ok');
+      renderAll();
+    }
+  );
+}
+
+function showConfirm(message, onYes){
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <h3>確認</h3>
+      <p class="desc" style="font-size:13.5px;color:var(--ink);margin-bottom:20px;">${escapeHtml(message)}</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirmCancel">キャンセル</button>
+        <button class="btn btn-primary" id="confirmYes" style="background:var(--out-clay);">削除する</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#confirmCancel').addEventListener('click', ()=> overlay.remove());
+  overlay.querySelector('#confirmYes').addEventListener('click', ()=>{ overlay.remove(); onYes(); });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.getElementById('openingBalance').addEventListener('change', renderAll);
+document.getElementById('openingBalance').addEventListener('input', ()=>{
+  if (state.selectedMonth && state.selectedMonth!=='overview') renderContent();
+});
+document.getElementById('saveDataBtn').addEventListener('click', saveToBrowser);
+document.getElementById('exportFileBtn').addEventListener('click', exportStateJson);
+document.getElementById('loadDataBtn').addEventListener('click', ()=> document.getElementById('loadDataInput').click());
+document.getElementById('loadDataInput').addEventListener('change', (e)=>{
+  if (e.target.files.length) importStateJsonFile(e.target.files[0]);
+  e.target.value = '';
+});
+renderAll();
+loadFromBrowserOnStartup();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</body>
+</html>
